@@ -41,7 +41,7 @@ databases work unchanged.
 ## Install
 
 ```sh
-go install github.com/fvc-ai/gollard/cmd/gollard@latest
+go install github.com/yovico/gollard/cmd/gollard@latest
 ```
 
 Or build from source:

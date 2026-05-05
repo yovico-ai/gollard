@@ -11,7 +11,7 @@ import (
 	"syscall"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/fvc-ai/gollard/gollard"
+	"github.com/yovico/gollard/gollard"
 )
 
 const version = "gollard -- 0.6.3.0"
