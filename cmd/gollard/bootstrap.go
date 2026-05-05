@@ -5,7 +5,7 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/yovico/gollard/gollard"
+	"github.com/yovico-ai/gollard/gollard"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

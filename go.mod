@@ -1,4 +1,4 @@
-module github.com/yovico/gollard
+module github.com/yovico-ai/gollard
 
 go 1.24
 
