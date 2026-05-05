@@ -1,0 +1,19 @@
+# Build output
+/bin/
+/dist/
+/cmd/gollard/gollard
+/cmd/gollard/gollard.exe
+
+# Test output
+*.out
+coverage.txt
+*.test
+
+# Editor / OS noise
+.DS_Store
+.idea/
+.vscode/
+
+# Vagrant
+.vagrant
+*.log
