@@ -1,6 +1,6 @@
 package gollard
 
-import gollardsql "github.com/yovico/gollard/sql"
+import gollardsql "github.com/fvc-ai/gollard/sql"
 
 type schemaScript struct {
 	Version int64
