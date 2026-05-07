@@ -278,12 +278,32 @@ func (p *parser) parseAction() (Action, error) {
 	return Action{}, p.errf("expected 'migration' or 'test' keyword")
 }
 
+// consumeSemi consumes the header-terminating ';' and skips only genuine
+// whitespace afterward (spaces, tabs, newlines). Unlike symbol(";"), it does
+// NOT call skipWS(), which would eat leading '--' SQL comment markers and strip
+// the first comment line from the body before Postgres sees it.
+func (p *parser) consumeSemi() bool {
+	if p.peek() != ';' {
+		return false
+	}
+	p.pos++
+	for p.pos < len(p.src) {
+		c := p.src[p.pos]
+		if c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v' {
+			p.pos++
+		} else {
+			break
+		}
+	}
+	return true
+}
+
 func (p *parser) parseMigrationBody() (*Migration, error) {
 	fields, err := p.parseHeaderFields()
 	if err != nil {
 		return nil, err
 	}
-	if !p.symbol(";") {
+	if !p.consumeSemi() {
 		return nil, p.errf("expected ';' to terminate migration header")
 	}
 	name, err := requireText(fields, "name")
@@ -322,7 +342,7 @@ func (p *parser) parseTestBody() (*Test, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !p.symbol(";") {
+	if !p.consumeSemi() {
 		return nil, p.errf("expected ';' to terminate test header")
 	}
 	name, err := requireText(fields, "name")

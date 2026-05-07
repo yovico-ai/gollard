@@ -489,16 +489,14 @@ END $$;
 	}
 }
 
-// TestParseActions_BodyWithSQLComments verifies the behaviour of SQL comments
-// inside a migration body. Because skipWS treats '-' as whitespace and is
-// called after the header's ';', any leading "--" immediately following the
-// semicolon are consumed before body collection begins. Comments that appear
-// WITHIN the body (not at its very start) are preserved verbatim.
+// TestParseActions_BodyWithSQLComments verifies that SQL comments in the body
+// are passed verbatim to Postgres — including a leading comment immediately
+// after the header semicolon.
 func TestParseActions_BodyWithSQLComments(t *testing.T) {
 	src := `#!migration name: "m", description: "d";
--- This leading comment is stripped by skipWS (dashes are whitespace to the parser)
+-- This leading comment must be preserved (not stripped)
 CREATE TABLE t (id INT);
--- This mid-body comment is preserved as-is
+-- This mid-body comment is also preserved
 CREATE INDEX IF NOT EXISTS idx_t ON t(id);
 `
 	actions, err := ParseActions("t.sql", src)
@@ -506,25 +504,44 @@ CREATE INDEX IF NOT EXISTS idx_t ON t(id);
 		t.Fatalf("unexpected error: %v", err)
 	}
 	script := actions[0].Migration.Script
-	// The very first "-- ..." after the semicolon is consumed by skipWS.
-	if strings.HasPrefix(script, "--") {
-		t.Errorf("leading -- should be stripped by skipWS, got script starting with: %q", script[:min(40, len(script))])
+	// Leading comment must survive intact.
+	if !strings.HasPrefix(script, "--") {
+		t.Errorf("leading -- comment should be preserved; script starts with: %q", script[:min(40, len(script))])
 	}
-	// SQL inside the body is captured.
+	if !strings.Contains(script, "-- This leading comment") {
+		t.Errorf("leading comment missing from script: %q", script)
+	}
+	// SQL and mid-body comments also survive.
 	if !strings.Contains(script, "CREATE TABLE t") {
 		t.Errorf("script %q should contain CREATE TABLE", script)
 	}
-	// Comments in the MIDDLE of the body survive.
 	if !strings.Contains(script, "-- This mid-body comment") {
 		t.Errorf("mid-body comment should be preserved in: %q", script)
 	}
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
+// TestParseActions_BodyLeadingCommentWithBoxChars is the regression test for
+// the migration failure that occurred when decorative section-separator
+// comments (using box-drawing characters such as ──) appeared as the first
+// line of a migration body. Previously, skipWS was called after the header
+// semicolon and ate the "--" prefix, leaving the raw box chars as the first
+// bytes sent to Postgres, which rejected them as a syntax error.
+func TestParseActions_BodyLeadingCommentWithBoxChars(t *testing.T) {
+	src := "-- #!migration\n-- name: \"m\", description: \"d\", requires: [\"parent\"];\n\n-- ── Section header ────────────────────────────────\n\nALTER TABLE t ADD COLUMN x INT;\n"
+	actions, err := ParseActions("t.sql", src)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	return b
+	script := actions[0].Migration.Script
+	if !strings.HasPrefix(script, "--") {
+		t.Errorf("script should start with the section comment; got: %q", script[:min(50, len(script))])
+	}
+	if !strings.Contains(script, "──") {
+		t.Errorf("box-drawing chars should be preserved in script: %q", script)
+	}
+	if !strings.Contains(script, "ALTER TABLE t") {
+		t.Errorf("ALTER TABLE missing from script: %q", script)
+	}
 }
 
 // TestParseActions_ChecksumChangesWithBody verifies that editing the body
