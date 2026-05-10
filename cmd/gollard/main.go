@@ -31,8 +31,6 @@ func main() {
 	switch cmd {
 	case "migrate":
 		err = runMigrate(ctx, args)
-	case "bootstrap-from-atlas":
-		err = runBootstrapFromAtlas(ctx, args)
 	case "confirm-checksums":
 		err = runConfirmChecksums(ctx, args)
 	case "repair-checksum":
@@ -61,7 +59,6 @@ func usage(w *os.File) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Available commands:")
 	fmt.Fprintln(w, "  migrate              Apply unapplied migrations under a directory.")
-	fmt.Fprintln(w, "  bootstrap-from-atlas Seed mallard from atlas_schema_revisions, then drop atlas's schema.")
 	fmt.Fprintln(w, "  confirm-checksums    Compare applied checksums against the directory.")
 	fmt.Fprintln(w, "  repair-checksum      Replace a database checksum with the directory's.")
 	fmt.Fprintln(w, "  version              Display application version.")
@@ -128,9 +125,6 @@ func runMigrate(ctx context.Context, args []string) error {
 	var runTests bool
 	fs.BoolVar(&runTests, "test", false, "Run tests after migration.")
 	fs.BoolVar(&runTests, "t", false, "Run tests after migration. (shorthand)")
-	var fromAtlas bool
-	fs.BoolVar(&fromAtlas, "from-atlas", false,
-		"Run bootstrap-from-atlas before migrating. No-op if atlas_schema_revisions doesn't exist.")
 	if err := parseRootAndFlags(fs, args, "ROOT"); err != nil {
 		return err
 	}
@@ -141,14 +135,6 @@ func runMigrate(ctx context.Context, args []string) error {
 		return err
 	}
 	defer pool.Close()
-
-	if fromAtlas {
-		// Reuse the standalone bootstrap path so behaviour is identical
-		// whether invoked directly or as a flag here.
-		if err := bootstrapFromAtlas(ctx, pool, root); err != nil {
-			return err
-		}
-	}
 
 	db := gollard.NewDB(pool)
 	return gollard.Migrate(ctx, db, root, runTests)
