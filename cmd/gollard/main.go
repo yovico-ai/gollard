@@ -31,6 +31,8 @@ func main() {
 	switch cmd {
 	case "migrate":
 		err = runMigrate(ctx, args)
+	case "validate":
+		err = runValidate(args)
 	case "confirm-checksums":
 		err = runConfirmChecksums(ctx, args)
 	case "repair-checksum":
@@ -59,6 +61,7 @@ func usage(w *os.File) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Available commands:")
 	fmt.Fprintln(w, "  migrate              Apply unapplied migrations under a directory.")
+	fmt.Fprintln(w, "  validate             Parse a directory and resolve its dependency graph. No database.")
 	fmt.Fprintln(w, "  confirm-checksums    Compare applied checksums against the directory.")
 	fmt.Fprintln(w, "  repair-checksum      Replace a database checksum with the directory's.")
 	fmt.Fprintln(w, "  version              Display application version.")
@@ -112,6 +115,44 @@ func openPool(ctx context.Context, c *connOpts) (*pgxpool.Pool, error) {
 		return nil, err
 	}
 	return pool, nil
+}
+
+// runValidate parses every migration under ROOT and resolves the dependency
+// graph. It touches no database, which is the entire point.
+//
+// Every other command needs a connection, so until now the first thing that
+// ever read these files was a deploy. That makes a malformed header a
+// deploy-time failure — and a spectacularly broad one, because ImportDirectory
+// parses the whole tree before anything is applied: one bad file stops
+// migrations that are themselves perfectly fine, in every environment at once.
+//
+// Checked, in order:
+//
+//	parse           header syntax and SQL action structure (ImportDirectory)
+//	dependency      a `requires` naming a migration that does not exist
+//	cycles          MakeMigrationGraph rejects both
+//
+// Exits non-zero on the first failure so it can be used as a gate.
+func runValidate(args []string) error {
+	fs := flag.NewFlagSet("validate", flag.ExitOnError)
+	fs.Usage = func() {
+		fmt.Fprintln(fs.Output(), "Usage: gollard validate ROOT")
+		fs.PrintDefaults()
+	}
+	if err := parseRootAndFlags(fs, args, "ROOT"); err != nil {
+		return err
+	}
+
+	planned, tests, err := gollard.ImportDirectory(fs.Arg(0))
+	if err != nil {
+		return err
+	}
+	if _, err := gollard.MakeMigrationGraph(planned); err != nil {
+		return err
+	}
+
+	fmt.Printf("ok: %d migrations, %d tests, dependency graph resolves\n", len(planned), len(tests))
+	return nil
 }
 
 func runMigrate(ctx context.Context, args []string) error {

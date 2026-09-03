@@ -61,6 +61,7 @@ gollard COMMAND [OPTIONS]
 
 Commands:
   migrate ROOT             Apply unapplied migrations under ROOT.
+  validate ROOT            Parse ROOT and resolve its dependency graph. No database.
   confirm-checksums ROOT   Compare applied checksums against the directory.
   repair-checksum ROOT NAME  Replace the DB checksum with the directory's.
   version                  Print version.
@@ -76,11 +77,24 @@ Migrate-only:
   -t, --test       Run tests after migration.
 ```
 
-Example:
+Examples:
 
 ```sh
 gollard migrate ./sql --host db.local --user me --password s3cret --database app
 ```
+
+`validate` needs no connection, so it can run in CI or a pre-push hook:
+
+```sh
+gollard validate ./sql
+# ok: 192 migrations, 0 tests, dependency graph resolves
+```
+
+It catches a malformed header, a `requires` that names a migration which does
+not exist, and a dependency cycle. Every one of those is otherwise invisible
+until a deploy — and none of them is a contained failure, because the whole
+directory is parsed before anything is applied, so one bad file stops
+migrations that are themselves fine.
 
 ## Migration file format
 
