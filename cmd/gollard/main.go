@@ -176,6 +176,18 @@ func runMigrate(ctx context.Context, args []string) error {
 		return err
 	}
 	defer pool.Close()
+	// The mallard bootstrap script ends with `SET search_path TO mallard`
+	// (sql/mallard/0000-setup.sql). That is a SESSION setting, so it outlives
+	// the script on whichever pooled connection ran it — and a later migration
+	// handed that same connection creates its tables in `mallard` instead of
+	// `public`. Non-deterministic, because pgxpool decides which connection a
+	// query gets, which is what makes it nasty to diagnose.
+	//
+	// Pin the search_path before applying anything so application DDL always
+	// lands where the migration author meant.
+	if _, err := pool.Exec(ctx, `SET search_path = public`); err != nil {
+		return fmt.Errorf("set migration search_path: %w", err)
+	}
 
 	db := gollard.NewDB(pool)
 	return gollard.Migrate(ctx, db, root, runTests)
